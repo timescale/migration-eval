@@ -10,7 +10,6 @@ What version of postgresql is in use?
 select version();
 ```
 
-
 Is the timescaledb extension in use? If so, what version and in which 
 schema is it installed? 
 
@@ -88,11 +87,63 @@ select
 ;
 ```
 
+Are you using schemas other than “public”?
+
+```sql
+select
+  n.nspname
+, count(k.oid) as objects
+, count(h.id) as hypertables
+from pg_namespace n
+left outer join pg_class k on (n.oid = k.relnamespace)
+left outer join _timescaledb_catalog.hypertable h on (n.nspname = h.schema_name and k.relname = h.table_name)
+where n.nspname not like 'pg_%'
+and n.nspname != 'information_schema'
+group by 1
+order by 1
+;
+```
+
 Do you use any tablespaces other than the default? Timescale does not support
 custom tablespaces.
 
 ```sql
 \db
+-- or
+select
+  spcname as "name"
+, pg_catalog.pg_get_userbyid(spcowner) as "owner"
+, pg_catalog.pg_tablespace_location(oid) as "location"
+from pg_catalog.pg_tablespace
+order by 1;
+```
+
+How many database users do you have? How many are used by your application? Do any make use of superuser privileges?
+
+```sql
+\du
+-- or
+select
+  r.rolname
+, r.rolsuper
+, r.rolinherit
+, r.rolcreaterole
+, r.rolcreatedb
+, r.rolcanlogin
+, r.rolconnlimit
+, r.rolvaliduntil
+, array
+  (
+    select b.rolname
+    from pg_catalog.pg_auth_members m
+    inner join pg_catalog.pg_roles b on (m.roleid = b.oid)
+    where m.member = r.oid
+  ) as memberof
+, r.rolreplication
+, r.rolbypassrls
+from pg_catalog.pg_roles r
+where r.rolname !~ '^pg_'
+order by 1;
 ```
 
 Please share these settings with us.
@@ -144,6 +195,57 @@ and n.nspname not like 'pg_%'
 and n.nspname != 'information_schema'
 order by n.nspname, h.id, c.relname
 ;
+```
+
+How many chunks do the hypertables have? How many chunks are compressed?
+
+```sql
+select
+  hypertable_schema
+, hypertable_name
+, owner
+, num_dimensions
+, num_chunks
+, compression_enabled
+from timescaledb_information.hypertables h
+order by 1, 2
+;
+
+select
+  hypertable_schema
+, hypertable_name
+, count(*) as num_chunks
+, count(*) filter (where not is_compressed) as num_uncompressed
+, count(*) filter (where is_compressed) as num_compressed
+, min(range_start) as min_range
+, max(range_end) as max_range
+, min(range_start) filter (where is_compressed) as min_range_compressed
+, max(range_end) filter (where is_compressed) as max_range_compressed
+, min(range_start_integer) as min_range_integer
+, max(range_end_integer) as max_range_integer
+, min(range_start_integer) filter (where is_compressed) as min_range_integer_compressed
+, max(range_end_integer) filter (where is_compressed) as max_range_integer_compressed
+from timescaledb_information.chunks
+group by 1, 2
+order by 1, 2
+;
+```
+
+Do you use space dimensions?
+
+```sql
+select *
+from
+(
+    select
+      d.hypertable_id
+    , row_number() over (partition by d.hypertable_id order by d.id) as dimension_nbr
+    , d.column_name
+    , d.column_type
+    , d.num_slices
+    from _timescaledb_catalog.dimension d
+) x
+where x.dimension_nbr = 2
 ```
 
 What background jobs do you have defined?
@@ -202,22 +304,78 @@ order by x.path
 ;
 ```
 
-Do you have non-timeseries tables (meta/relational data)? Are there foreign key relationships between these and time-series tables? How large are these tables? Are the data in these tables static or are they modified?
+Do you have non-timeseries tables (meta/relational data)? Are the data in these tables static or are they modified?
 
-Is your time-series workload append-only, or do you update and delete rows too? 
+```sql
+select
+  n.nspname
+, k.relname
+, pg_size_pretty(pg_total_relation_size(k.oid::regclass))
+from pg_class k
+inner join pg_namespace n on (k.relnamespace = n.oid)
+where k.relkind = 'r'
+and not exists
+(
+    select 1
+    from _timescaledb_catalog.hypertable h
+    where n.nspname = h.schema_name
+    and k.relname = h.table_name
+)
+order by 1, 2
+```
 
-Do you have late-arriving data?
+Are there foreign key relationships between these and time-series tables? How large are these tables?
 
-Do you use space dimensions?
+```sql
+select
+  h.schema_name as hypertable_schema
+, h.table_name as hypertable_name
+, f.conname as fk_name
+, n.nspname as referenced_schema
+, k.relname as referenced_table
+, pg_size_pretty(pg_total_relation_size(k.oid::regclass))
+from pg_constraint f
+inner join pg_class hk on (f.conrelid = hk.oid)
+inner join pg_namespace hn on (hk.relnamespace = hn.oid)
+inner join _timescaledb_catalog.hypertable h on (hk.relname = h.table_name and hn.nspname = h.schema_name)
+inner join pg_class k on (f.confrelid = k.oid)
+inner join pg_namespace n on (k.relnamespace = n.oid)
+where f.contype = 'f'
+and hn.nspname != '_timescaledb_internal'
+;
+```
+
+Is your time-series workload append-only, or do you update and delete rows too? Do you have late-arriving data?
 
 Do you use compression? Please describe the configuration.
 
+```sql
+select *
+from  timescaledb_information.compression_settings
+;
+```
+
 Do you use retention policies? Please describe the configuration.
 
-Do you use continuous aggregates? Do you use hierarchical continuous aggregates? Is compression enabled on them? Please describe the configuration.
+```sql
+select 
+  j.id
+, hypertable_id
+, h.schema_name
+, h.table_name
+, config->>'drop_after' as drop_after
+, scheduled
+, schedule_interval
+, max_runtime
+, max_retries
+, retry_period
+from _timescaledb_config.bgw_job j
+inner join _timescaledb_catalog.hypertable h
+on (j.hypertable_id = h.id)
+where proc_schema = '_timescaledb_internal'
+and proc_name = 'policy_retention'
+;
+```
 
-How many hypertables do you have? Please describe how large these are. How many chunks do they have? How many chunks are compressed?
 
-How many database users do you have? How many are used by your application? Do any make use of superuser privileges?
 
-Are you using schemas other than “public”?
