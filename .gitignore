@@ -1,3 +1,5 @@
 .idea
 eval-dump-generated.sh
 eval-dump
+*.txt
+__pycache__
