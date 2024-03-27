@@ -16,6 +16,8 @@ jobs:
     env:
       EVAL_FILE_NAME: evaluate.py
     steps:
+      - uses: actions/checkout@v3
+
       - name: Configure aws credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
