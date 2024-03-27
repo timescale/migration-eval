@@ -1,0 +1,31 @@
+on:
+  push:
+    branches:
+    - main
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+name: assets
+
+jobs:
+  upload-script:
+    runs-on: ubuntu-latest
+    env:
+      EVAL_FILE_NAME: evaluate.py
+    steps:
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::818196790983:role/upload-releases-to-assets.timescale.com
+          aws-region: us-east-1
+
+      - name: Upload the binary to assets.timescale.com
+        run: |
+          aws s3api put-object \
+            --acl public-read \
+            --bucket assets.timescale.com \
+             --key releases/migration/${EVAL_FILE_NAME} \
+             --body ${EVAL_FILE_NAME}
