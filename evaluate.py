@@ -1,6 +1,22 @@
-# "evaluate.py" runs SQL queries against your database and collects necessary data to generate a
-# migration evaluation report. Users planning a migration are encouraged to submit this report to the
-# Timescale migration team. This will allow the team to recommend the most suitable migration strategy
+# Copyright 2024 Timescale Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Repository: https://github.com/timescale/migration-eval
+#
+# This file runs SQL queries against your database and collects necessary data to generate a
+# migration evaluation report. Users planning a migration are encouraged to submit this report to
+# Timescale migration team. This will allow us to recommend the most suitable migration strategy
 # tailored to your specific use case.
 #
 # To run: python3 evaluate.py "<POSTGRES_URI>" > report.txt
