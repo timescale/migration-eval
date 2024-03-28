@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2024 Timescale Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,15 +15,13 @@
 
 # Repository: https://github.com/timescale/migration-eval
 #
-# This file runs SQL queries against your database and collects necessary data to generate a
-# migration evaluation report. Users planning a migration are encouraged to submit this report to
-# Timescale migration team. This will allow us to recommend the most suitable migration strategy
-# tailored to your specific use case.
+# This file runs SQL queries against your database and collects necessary data
+# to generate a migration evaluation report, which allows us to recommend the
+# most suitable migration strategy for your specific use case.
 #
 # To run: python3 evaluate.py "<POSTGRES_URI>" > report.txt
 #
 # The generated report will be printed in the terminal which can be redirected to a file.
-
 
 import sys
 import subprocess
