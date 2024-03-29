@@ -163,13 +163,119 @@ QUERIES = [
             select json_agg(json_build_object(extname, extversion)) from pg_extension
             where extname not in ({",".join([f"'{ext}'" for ext in SUPPORTED_EXTENSIONS])})
             """,
+    }, {
+        "name": "Do tables have generated columns",
+        "query": f"""
+            select exists(select 1 from information_schema.columns where is_generated = 'ALWAYS')
+            """
+    }, {
+        "name": "Do tables attributes have NaN, Infinity or -Infinity*",
+        "query": f"""
+            select exists (
+                select 1 from pg_stats where
+                    schemaname not in (
+                        '_timescaledb_internal', '_timescaledb_config', '_timescaledb_catalog', '_timescaledb_cache',
+                                    'timescaledb_experimental', 'timescaledb_information', '_timescaledb_functions',
+                                    'information_schema', 'pg_catalog')
+                and
+                    (
+                        exists (
+                            select 1 from unnest(most_common_vals::text::text[]) as v
+                            where
+                                v IN ('NaN', 'Infinity', '-Infinity')
+                        )
+                    or
+                        exists (
+                            select 1 from unnest(histogram_bounds::text::text[]) as h
+                            where
+                                h IN ('NaN', 'Infinity', '-Infinity')
+                        )
+                    )
+            )
+            """
+    }, {
+        "name": "Rate of inserts, updates, deletes and transactions (per sec)",
+        "query": f"""
+            create temp table _mig_eval_t (
+                n int, n_tup_ins numeric, n_tup_upd numeric, n_tup_del numeric, xact_commit numeric
+            );
+
+            begin;
+                insert into _mig_eval_t
+                    select 1, sum(n_tup_ins) n_tup_ins, sum(n_tup_upd) n_tup_upd, sum(n_tup_del) n_tup_del, d.xact_commit
+                    from pg_stat_user_tables u join pg_stat_database d on true
+                    where
+                        u.relname not in ('_mig_eval_t') AND
+                        u.schemaname not in (
+                            '_timescaledb_config', '_timescaledb_catalog', '_timescaledb_cache',
+                            'timescaledb_experimental', 'timescaledb_information', '_timescaledb_functions',
+                            'information_schema', 'pg_catalog') AND
+                        d.datname = current_database()
+                    group by d.xact_commit;
+            commit;
+
+            select pg_sleep(@wait@);
+
+            begin;
+                insert into _mig_eval_t
+                    select 2, sum(n_tup_ins) n_tup_ins, sum(n_tup_upd) n_tup_upd, sum(n_tup_del) n_tup_del, d.xact_commit
+                    from pg_stat_user_tables u join pg_stat_database d on true
+                    where
+                        u.relname not in ('_mig_eval_t') AND
+                        u.schemaname not in (
+                            '_timescaledb_config', '_timescaledb_catalog', '_timescaledb_cache',
+                            'timescaledb_experimental', 'timescaledb_information', '_timescaledb_functions',
+                            'information_schema', 'pg_catalog') AND
+                        d.datname = current_database()
+                    group by d.xact_commit;
+            commit;
+
+            with before as (
+                select * from _mig_eval_t where n = 1
+            ), after as (
+                select * from _mig_eval_t where n = 2
+            )
+            select
+                round((after.n_tup_ins - before.n_tup_ins) / @wait@, 3) inserts_per_sec,
+                ' ' || round((after.n_tup_upd - before.n_tup_upd) / @wait@, 3) updates_per_sec,
+                ' ' || round((after.n_tup_del - before.n_tup_del) / @wait@, 3) deletes_per_sec,
+                ' ' || round((after.xact_commit - before.xact_commit) / @wait@, 3) txns_per_sec
+            from after, before;
+            """,
+    }, {
+        "name": "WAL activity",
+        "query": f"""
+            create temp table _mig_eval_w (n int, wal_records numeric, wal_bytes numeric);
+
+            begin;
+                insert into _mig_eval_w
+                select 1, wal_records, wal_bytes from pg_stat_wal;
+            commit;
+
+            select pg_sleep(@wait@);
+
+            begin;
+                insert into _mig_eval_w
+                select 2, wal_records, wal_bytes from pg_stat_wal;
+            commit;
+
+            with before as (
+                select * from _mig_eval_w where n = 1
+            ), after as (
+                select * from _mig_eval_w where n = 2
+            )
+            select
+                round((after.wal_records - before.wal_records) / @wait@, 3)::text || ' wal_records_per_sec',
+                ' ' || round((after.wal_bytes - before.wal_bytes) / (@wait@ * 1024 * 1024), 3)::text || ' wal_megabytes_per_sec'
+            from after, before;
+            """
     }
 ]
 
 POSTGRES_URI = ""
 
 def execute(sql: str) -> str:
-    cmd = ["psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "--echo-errors", "-d", POSTGRES_URI, "-c", sql]
+    cmd = ["psql", "-X", "-A", "-t", "-q", "-F", ",", "-v", "ON_ERROR_STOP=1", "--echo-errors", "-d", POSTGRES_URI, "-c", sql]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     output = str(result.stdout)[:-1].strip()
     if result.returncode != 0:
@@ -185,13 +291,17 @@ def test_conn() -> bool:
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        POSTGRES_URI = sys.argv[1]
-    else:
-        print('POSTGRES_URI not found. Please provide it as an argument\nEg: python3 evaluate.py "<POSTGRES_URI>"', file=sys.stderr)
-        sys.exit(1)
-
+    wait_duration = 60
+    match len(sys.argv):
+        case 3:
+            POSTGRES_URI = sys.argv[1]
+            wait_duration = int(sys.argv[2])
+        case 2:
+            POSTGRES_URI = sys.argv[1]
+        case _:
+            print('POSTGRES_URI not found. Please provide it as an argument\nEg: python3 evaluate.py "<POSTGRES_URI>"', file=sys.stderr)
+            sys.exit(1)
     test_conn()
-
     for query in QUERIES:
-        print(f"{query['name']}: {execute(query['query'])}", file=sys.stdout)
+        sql = query['query'].replace("@wait@", str(wait_duration))
+        print(f"{query['name']}: {execute(sql)}", file=sys.stdout)
