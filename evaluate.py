@@ -112,7 +112,10 @@ QUERIES = [
     }, {
         "name": "Num TimescaleDB Continuous Aggregates",
         "query": "select count(*) from timescaledb_information.continuous_aggregates",
-    },  {
+    }, {
+        "name": "Num old partial-form Continuous Aggregates",
+        "query": "select count(*) from timescaledb_information.continuous_aggregates where not finalized",
+    }, {
         "name": "Num TimescaleDB space dimensions",
         "query": "select count(*) from timescaledb_information.dimensions where dimension_type = 'Space'",
     }, {
