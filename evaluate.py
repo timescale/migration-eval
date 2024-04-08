@@ -101,8 +101,11 @@ QUERIES = [
         "name": "Non-standard tablespaces",
         "query": "select array_agg(spcname) from pg_tablespace where spcname not in ('pg_default', 'pg_global')",
     }, {
-        "name": "Databases",
-        "query": "select array_agg(datname) from pg_database where datname not in ('template0', 'template1', 'rdsadmin', 'tsadmin')",
+        "name": "Current database",
+        "query": "select current_database()",
+    }, {
+        "name": "Other databases",
+        "query": "select array_agg(datname) from pg_database where datname not in ('template0', 'template1', 'rdsadmin', 'tsadmin', current_database())",
     }, {
         "name": "TimescaleDB version",
         "query": "select extversion from pg_extension where extname = 'timescaledb'",
