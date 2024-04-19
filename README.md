@@ -34,7 +34,9 @@ Num tables: 74
 Num regular PostgreSQL tables excl. Hypertables: 8
 Num declarative partitions: 2
 Non-standard tablespaces: -
-Databases: {_timescaledb,defaultdb,tsbs}
+Current database: tsbs
+Other databases: {_timescaledb,defaultdb}
+Schemas: {public,iot}
 TimescaleDB version: 2.13.1
 Num TimescaleDB Hypertables: 2
 Num TimescaleDB Continuous Aggregates: 1
