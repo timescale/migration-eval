@@ -45,6 +45,7 @@ SUPPORTED_EXTENSIONS = [
     "pgcrypto",
     "pgpcre",
     "pgrouting",
+    "pgstattuple",
     "pgvector",
     "plpgsql",
     "postgis",
@@ -106,6 +107,15 @@ QUERIES = [
     }, {
         "name": "Other databases",
         "query": "select array_agg(datname) from pg_database where datname not in ('template0', 'template1', 'rdsadmin', 'tsadmin', current_database())",
+    }, {
+        "name": "Schemas",
+        "query": """
+            select array_agg(schema_name) from information_schema.schemata
+            where
+                schema_name not in ('pg_catalog', 'information_schema', '_timescaledb_functions',
+                'timescaledb_experimental', '_timescaledb_cache', '_timescaledb_catalog',
+                '_timescaledb_config', '_timescaledb_internal', 'timescaledb_information')
+            """
     }, {
         "name": "TimescaleDB version",
         "query": "select extversion from pg_extension where extname = 'timescaledb'",
