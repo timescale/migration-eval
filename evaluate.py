@@ -114,7 +114,8 @@ QUERIES = [
             where
                 schema_name not in ('pg_catalog', 'information_schema', '_timescaledb_functions',
                 'timescaledb_experimental', '_timescaledb_cache', '_timescaledb_catalog',
-                '_timescaledb_config', '_timescaledb_internal', 'timescaledb_information')
+                '_timescaledb_config', '_timescaledb_internal', 'timescaledb_information',
+                'toolkit_experimental')
             """
     }, {
         "name": "TimescaleDB version",
