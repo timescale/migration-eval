@@ -306,15 +306,14 @@ def test_conn() -> bool:
 
 if __name__ == "__main__":
     wait_duration = 60
-    match len(sys.argv):
-        case 3:
-            POSTGRES_URI = sys.argv[1]
-            wait_duration = int(sys.argv[2])
-        case 2:
-            POSTGRES_URI = sys.argv[1]
-        case _:
-            print('POSTGRES_URI not found. Please provide it as an argument\nEg: python3 evaluate.py "<POSTGRES_URI>"', file=sys.stderr)
-            sys.exit(1)
+    if len(sys.argv) == 3:
+        POSTGRES_URI = sys.argv[1]
+        wait_duration = int(sys.argv[2])
+    elif len(sys.argv) == 2:
+        POSTGRES_URI = sys.argv[1]
+    else:
+        print('POSTGRES_URI not found. Please provide it as an argument\nEg: python3 evaluate.py "<POSTGRES_URI>"', file=sys.stderr)
+        sys.exit(1)
     test_conn()
     for query in QUERIES:
         sql = query['query'].replace("@wait@", str(wait_duration))
