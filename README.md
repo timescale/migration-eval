@@ -4,7 +4,7 @@ This repository provides scripts that assist the Timescale migration team
 in selecting the optimal migration strategy to Timescale Cloud for your
 specific database.
 
-You will need `Python 3.x` and `psql` to run the scripts.
+You will need `Python 3.7.x` or above and `psql` to run the scripts.
 
 To recommend a suitable migration strategy for your database, we'll need
 some information about its current state. You can collect this information
