@@ -290,7 +290,7 @@ POSTGRES_URI = ""
 
 def execute(sql: str) -> str:
     cmd = ["psql", "-X", "-A", "-t", "-q", "-F", ",", "-v", "ON_ERROR_STOP=1", "--echo-errors", "-d", POSTGRES_URI, "-c", sql]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     output = str(result.stdout)[:-1].strip()
     if result.returncode != 0:
         return "-"
@@ -300,7 +300,7 @@ def execute(sql: str) -> str:
 
 def test_conn() -> bool:
     cmd = ["psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "--echo-errors", "-d", POSTGRES_URI, "-c", "select 1"]
-    result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE)
+    result = subprocess.run(cmd, universal_newlines=True, stdout=subprocess.PIPE)
     if result.returncode != 0:
         sys.exit(1)
 
