@@ -74,10 +74,29 @@ QUERIES = [
     }, {
         "name": "Num tables",
         "query": """
+            -- Count of all tables (plain Postgres tables + hypertables + compressed/uncompressed chunks)
+            -- excluding Postgres and TimescaleDB system tables.
             select count(*) from information_schema.tables
             where
-                table_type = 'BASE TABLE' and
-                table_schema not in ('information_schema', 'pg_catalog')
+                table_type = 'BASE TABLE'
+            and
+                table_schema not in (
+                  -- Ignore tables from PG system.
+                  'information_schema', 'pg_catalog',
+
+                  -- Ignore tables from TSDB system.
+                  '_timescaledb_catalog', '_timescaledb_cache', 'timescaledb_information',
+                  '_timescaledb_config', '_timescaledb_debug', '_timescaledb_functions', 'timescaledb_experimental'
+                )
+            and
+              	-- Ignore tables from TSDB system under _timescaledb_internal schema.
+                (
+                  	table_schema = '_timescaledb_internal'
+                and
+                    table_name not in (
+                      'bgw_job_stat', 'bgw_policy_chunk_stats', 'job_errors'
+                    )
+                )
             """,
     }, {
         "name": "Num regular PostgreSQL tables excl. Hypertables",
