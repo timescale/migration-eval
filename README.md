@@ -4,19 +4,20 @@ This repository provides scripts that assist the Timescale migration team
 in selecting the optimal migration strategy to Timescale Cloud for your
 specific database.
 
-You will need `Python 3.6.x` or above and `psql` to run the scripts.
+To run the script, you will need `psql`. Make sure you can connect to your
+database with `psql` before you proceed.
 
 To recommend a suitable migration strategy for your database, we'll need
 some information about its current state. You can collect this information
 by running the following command:
 
 ```sh
-curl -sL https://assets.timescale.com/releases/migration/evaluate.py | python3 - "<POSTGRES_URI>" <wait-duration> > report.txt
+curl -sL https://assets.timescale.com/releases/migration/evaluate.sql | psql -t -q -v sampling_interval=60 -d "POSTGRES_URI" -f - > report.txt
 ```
 
 where
-- `<POSTGRES_URI>` is the URI of your source database.
-- `<wait-duration>` is the amount of time in _seconds_ to consider while computing rate based metrics, eg, rate of transactions per second. This argument is optional and defaults to 1 minute.
+- `POSTGRES_URI` is the URI of your source database.
+- `sampling_interval` is the amount of time in _seconds_ to consider while computing rate based metrics, eg, rate of transactions per second. This argument is optional and defaults to 60 seconds.
 
 The above command will:
 - Download the latest evaluation script
@@ -45,7 +46,6 @@ TimescaleDB extension schema: public
 TimescaleDB features: {hypertables,continuous_aggregates,retention,compression,background_jobs}
 Unsupported extensions in Timescale Cloud: [{"aiven_extras" : "1.1.12"}]
 Rate of inserts, updates, deletes and transactions (per sec): 10791.750, 0.000, 0.000, 43.667
-Do compressed chunks have mutable (insert/update/delete) compression*: f
 Do tables have generated columns: f
 Do tables attributes have NaN, Infinity or -Infinity*: f
 WAL activity: 19786.500 wal_records_per_sec, 2.172 wal_megabytes_per_sec
