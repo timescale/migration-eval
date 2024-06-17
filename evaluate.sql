@@ -59,24 +59,6 @@ and
 \gset
 \echo 'Num tables:' :count
 
--- Plain PG tables only (non-system tables).
-select count(*) count from information_schema.tables
-where
-    table_type = 'BASE TABLE' and
-    table_schema not in (
-        '_timescaledb_internal', '_timescaledb_config', '_timescaledb_catalog', '_timescaledb_cache',
-        'timescaledb_experimental', 'timescaledb_information', '_timescaledb_functions',
-        'information_schema', 'pg_catalog') and
-    not exists (
-        select 1 from timescaledb_information.hypertables ht
-        where
-            ht.hypertable_schema = table_schema
-        and
-            ht.hypertable_name = table_name
-    )
-\gset
-\echo 'Num regular PostgreSQL tables excl. Hypertables:' :count
-
 select count(*) count from pg_partitioned_table \gset
 \echo 'Num declarative partitions:' :count
 
@@ -99,8 +81,34 @@ where
     'toolkit_experimental') \gset
 \echo 'Schemas:' :coalesce
 
-select extversion from pg_extension where extname = 'timescaledb' \gset
-\echo 'TimescaleDB version:' :extversion
+select exists(select 1 from pg_extension where extname = 'timescaledb') is_timescaledb \gset
+
+\if :is_timescaledb
+select extversion tsdb_version from pg_extension where extname = 'timescaledb' \gset
+\echo 'TimescaleDB version:' :tsdb_version
+
+select n.nspname nspname from pg_extension e
+    join pg_namespace n on e.extnamespace = n.oid
+    where extname = 'timescaledb' \gset
+\echo 'TimescaleDB extension schema:' :nspname
+
+-- Plain PG tables only (non-system tables).
+select count(*) count from information_schema.tables
+where
+    table_type = 'BASE TABLE' and
+    table_schema not in (
+        '_timescaledb_internal', '_timescaledb_config', '_timescaledb_catalog', '_timescaledb_cache',
+        'timescaledb_experimental', 'timescaledb_information', '_timescaledb_functions',
+        'information_schema', 'pg_catalog') and
+    not exists (
+        select 1 from timescaledb_information.hypertables ht
+        where
+            ht.hypertable_schema = table_schema
+        and
+            ht.hypertable_name = table_name
+    )
+\gset
+\echo 'Num regular PostgreSQL tables excl. Hypertables:' :count
 
 select count(*) count from timescaledb_information.hypertables \gset
 \echo 'Num TimescaleDB Hypertables:' :count
@@ -113,11 +121,6 @@ select count(*) count from timescaledb_information.continuous_aggregates where n
 
 select count(*) count from timescaledb_information.dimensions where dimension_type = 'Space' \gset
 \echo 'Num TimescaleDB space dimensions:' :count
-
-select n.nspname nspname from pg_extension e
-    join pg_namespace n on e.extnamespace = n.oid
-    where extname = 'timescaledb' \gset
-\echo 'TimescaleDB extension schema:' :nspname
 
 -- TimescaleDB features
 select coalesce(array_agg(feature), '{}'::text[]) coalesce from (
@@ -149,6 +152,9 @@ union all
 where
     uses_feature \gset
 \echo 'TimescaleDB features:' :coalesce
+\else
+\echo 'TimescaleDB version: NA'
+\endif
 
 select coalesce(json_agg(json_build_object(extname, extversion)), '[]'::json) agg FROM pg_extension
 where extname not in (
@@ -217,6 +223,9 @@ insert into _mig_eval_t
         d.datname = current_database()
     group by d.xact_commit;
 
+select count(*) = 2 has_sufficient_activity_t from _mig_eval_t \gset
+
+\if :has_sufficient_activity_t
 with before as (
     select * from _mig_eval_t where n = 1
 ), after as (
@@ -230,6 +239,9 @@ select
         as per_sec
 from after, before \gset
 \echo 'Rate of DML:' :per_sec
+\else
+\echo 'Rate of DML: Insufficient activity'
+\endif
 
 -- WAL activity
 create temp table _mig_eval_w (n int, wal_records numeric, wal_bytes numeric);
@@ -242,6 +254,9 @@ select pg_sleep(:sampling_interval) \gset
 insert into _mig_eval_w
     select 2, wal_records, wal_bytes from pg_stat_wal;
 
+select count(*) = 2 has_sufficient_activity_w from _mig_eval_t \gset
+
+\if :has_sufficient_activity_w
 with before as (
     select * from _mig_eval_w where n = 1
 ), after as (
@@ -253,3 +268,6 @@ select
         as per_sec
 from after, before \gset
 \echo 'WAL activity:' :per_sec
+\else
+\echo 'WAL activity: Insufficient activity'
+\endif
