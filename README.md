@@ -7,9 +7,10 @@ specific database.
 To run the script, you will need `psql`. Make sure you can connect to your
 database with `psql` before you proceed.
 
-To recommend a suitable migration strategy for your database, we'll need
-some information about its current state. You can collect this information
-by running the following command:
+To recommend an appropriate migration strategy for your database, we need
+information about its current state. You can gather this information by
+running the following command during **periods of peak write activity** in
+your database:
 
 ```sh
 curl -sL https://assets.timescale.com/releases/migration/evaluate.sql | psql -t -q -v sampling_interval=60 -d "POSTGRES_URI" -f - > report.txt
